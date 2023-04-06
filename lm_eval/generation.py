@@ -37,12 +37,28 @@ class EndOfFunctionCriteria(StoppingCriteria):
 def parallel_generations(task, dataset, accelerator, model, tokenizer, n_tasks, args):
     if args.generations_path:
         # load generated code
+        generations = []
         with open(args.generations_path) as fp:
-            generations = json.load(fp)
+            # JSONL file: load each line and get the predictions
+            for line in fp:
+                generations.append( json.loads(line)['predictions'] )
             if accelerator.is_main_process:
                 print(
                     f"generations loaded, {n_tasks} selected from {len(generations)} with {len(generations[0])} candidates"
                 )
+        
+        # need to add prompt before the generations
+        for index in range(len(generations)):
+            prompt = dataset['prompt'][index]
+
+            example_candidates = []
+
+            # for each solution
+            for ex_index in range(len(generations[index])):
+                solution = f"{prompt}{generations[index][ex_index]}".replace('\t', ' '*4) 
+                example_candidates.append(solution)
+
+            generations[index] = example_candidates
         return generations[:n_tasks]
 
     set_seed(args.seed, device_specific=True)
